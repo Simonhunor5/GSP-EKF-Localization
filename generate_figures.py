@@ -1,17 +1,16 @@
 """
-Generate figures for LaTeX documentation.
+Generate figures for documentation.
 
 Usage:
     python generate_figures.py
     
-Saves figures to latex/figures/ directory.
+Saves figures to figures/ directory.
 """
 
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-# Magyar ékezetes karakterek támogatása
 plt.rcParams['font.family'] = 'DejaVu Sans'
 
 from src.experiment import ExperimentConfig, run_experiment
@@ -19,7 +18,7 @@ from src.experiment import ExperimentConfig, run_experiment
 
 def main():
     # Create output directory
-    output_dir = Path("latex/figures")
+    output_dir = Path("figures")
     output_dir.mkdir(parents=True, exist_ok=True)
     
     # Run experiment
@@ -92,7 +91,7 @@ def main():
     plt.close()
     print(f"Saved: {output_dir}/residual_norm.png")
     
-    print("\nAll figures saved to latex/figures/")
+    print("\nAll figures saved to figures/")
 
 
 if __name__ == "__main__":
