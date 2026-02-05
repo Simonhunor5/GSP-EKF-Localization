@@ -1,0 +1,80 @@
+\section{Heurisztikus mérési súlyozás reziduál alapján}
+
+\subsection{Kiindulás: reziduál anchoronként}
+A (\ref{eq:residual}) egyenletben definiált reziduál a predikált és a valós mérés különbsége \cite{Grewal2001}. Mivel $z_k\in\mathbb{R}^M$ tartalmazza az összes anchorhoz tartozó range mérést, ezért a reziduál is felbontható anchoronként:
+\begin{equation}
+\label{eq:residual_vector}
+r_k =
+\begin{bmatrix}
+r_1(k)\\
+\vdots\\
+r_M(k)
+\end{bmatrix}.
+\end{equation}
+Intuitívan: ha egy anchor mérése megbízhatatlan (pl. outlier vagy NLOS), akkor az adott $r_i(k)$ jellemzően nagyobb abszolút értékeket vesz fel, azaz a mért és várt távolság jobban eltér egymástól.
+
+\subsection{Ablakolt reziduál-energia: $e_i(k)$}
+A (B) pipeline célja, hogy minden anchorhoz egy online becsült megbízhatósági mérőszámot rendeljen \cite{Chhabra2021}.
+Ehhez az $i$-edik anchor reziduáljából egy csúszóablakos energiát számolunk:
+\begin{equation}
+\label{eq:residual_energy}
+e_i(k) = \frac{1}{T_{\text{win}}}\sum_{\tau=k-T_{\text{win}}+1}^{k} r_i(\tau)^2,
+\end{equation}
+ahol $T_{\text{win}}$ az ablak hossza.
+Kis $e_i(k)$ azt jelzi, hogy az anchor mérése az utóbbi időben következetesen illeszkedik a modellhez; nagy $e_i(k)$ pedig gyakori vagy erős eltérésekre utal.
+
+\subsection{Heurisztikus súlyok: $w_i(k)$}
+A (\ref{eq:residual_energy}) energia alapján egy $[0,1]$ intervallumba eső súlyt definiálunk:
+\begin{equation}
+\label{eq:heuristic_weight}
+w_i(k) = \exp\bigl(-\beta\,e_i(k)\bigr),
+\end{equation}
+ahol $\beta>0$ egy hangolási paraméter.
+Ennek hatása:
+\begin{itemize}
+    \item ha $e_i(k)\approx 0$, akkor $w_i(k)\approx 1$ (magas megbízhatóság),
+    \item ha $e_i(k)$ nő, akkor $w_i(k)$ gyorsan csökken (alacsony megbízhatóság).
+\end{itemize}
+A gyakorlatban numerikai okokból a súlyokat levágjuk egy kis alsó korláttal:
+\begin{equation}
+\label{eq:weight_clipping}
+w_i(k)\leftarrow \max(w_i(k), w_{\min}),
+\end{equation}
+hogy az illesztés stabil maradjon.
+
+\subsection{Adaptív mérési kovariancia: $R(k)$}
+A (\ref{eq:residual_cov}) egyenletben látható, hogy a mérési kovariancia $R$ szabja meg, mennyire bízik a filter a mérésben.
+A (\ref{eq:heuristic_weight}) súlyokat úgy építjük be, hogy az $i$-edik mérés effektív szórása nőjön, ha az anchor megbízhatatlan:
+\begin{equation}
+\label{eq:adaptive_R_element}
+R_i(k) = \frac{\sigma_r^2}{w_i(k)+\varepsilon},
+\end{equation}
+ahol $\varepsilon>0$ kis konstans a numerikai stabilitásért.
+Így:
+\begin{itemize}
+    \item ha $w_i(k)\approx 1$, akkor $R_i(k)\approx \sigma_r^2$ (a (\ref{eq:R_baseline}) baseline érték),
+    \item ha $w_i(k)\ll 1$, akkor $R_i(k)$ megnő, tehát az EKF kevésbé támaszkodik az adott mérésre.
+\end{itemize}
+A teljes mérési kovariancia diagonális mátrix:
+\begin{equation}
+\label{eq:adaptive_R}
+R(k) = \mathrm{diag}\bigl(R_1(k),\dots,R_M(k)\bigr).
+\end{equation}
+
+\subsection{(B) Pipeline összefoglalása}
+A (B) módszer lépései egy időpillanatban:
+\begin{enumerate}
+    \item EKF predikció a (\ref{eq:ekf_predict_state})--(\ref{eq:ekf_predict_cov}) szerint: $\hat x^-_k, P^-_k$.
+    \item Predikált mérés a (\ref{eq:predicted_measurement}) szerint: $\hat z_k = h(\hat x^-_k)$, reziduál: $r_k=z_k-\hat z_k$.
+    \item Reziduál-ablak frissítése, majd $e_i(k)$ számítása a (\ref{eq:residual_energy}) és $w_i(k)$ a (\ref{eq:heuristic_weight}) alapján.
+    \item Adaptív $R(k)$ felépítése a (\ref{eq:adaptive_R}) szerint.
+    \item EKF frissítés a (\ref{eq:ekf_update_state})--(\ref{eq:ekf_update_cov}) alapján az adaptív $R(k)$ használatával.
+\end{enumerate}
+
+\subsection{Értelmezés és várható hatás}
+A heurisztika erőssége, hogy egyszerű, gyors, és nem igényel gráftanulást vagy optimalizációt.
+Outlier esetén az érintett anchor reziduál-energiája megemelkedik a (\ref{eq:residual_energy}) szerint, a súlya csökken a (\ref{eq:heuristic_weight}) alapján, így az EKF automatikusan csökkenti az adott mérés hatását.
+Ez általában csökkenti a hirtelen hibaugrásokat és javítja az átlagos pozícióbecslési hibát a (\ref{eq:rmse}) metrika szerint.
+
+A módszer korlátja, hogy az anchorok közötti kapcsolatot nem modellezi: minden mérést egymástól függetlenül súlyoz.
+Ezt a hiányosságot célozza a (C) pipeline, amely a reziduálokat gráfon értelmezi és gráf-alapú simítást alkalmaz.

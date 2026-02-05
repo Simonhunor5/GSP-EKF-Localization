@@ -1,0 +1,95 @@
+\section{EKF alapú lokalizáció}
+
+\subsection{Az EKF szerepe és alapfeltevései}
+Az \textit{Extended Kalman Filter} (EKF) nemlineáris állapot--tér modellek esetén ad rekurzív becslést a robot állapotára \cite{Kalman1960, Grewal2001}.
+A módszer lokális linearizálást alkalmaz a mozgás- és mérési modell környezetében, majd a klasszikus Kalman-szűrő lépéseit hajtja végre.
+
+A (\ref{eq:motion_model}) és (\ref{eq:measurement_model}) egyenletekből kiindulva:
+\begin{equation}
+\label{eq:ekf_system}
+x_{k+1} = f(x_k,u_k) + w_k,\qquad w_k\sim\mathcal{N}(0,Q),
+\end{equation}
+\begin{equation}
+\label{eq:ekf_measurement}
+z_k = h(x_k) + v_k,\qquad v_k\sim\mathcal{N}(0,R).
+\end{equation}
+A baseline esetben a mérési kovariancia $R$ rögzített (időben állandó), és az EKF a Gauss zajfeltevésre épít.
+
+\subsection{Predikciós lépés}
+A predikció során az állapotot és a kovarianciát előre propagáljuk:
+\begin{equation}
+\label{eq:ekf_predict_state}
+\hat x^-_{k} = f(\hat x_{k-1},u_{k-1}),
+\end{equation}
+\begin{equation}
+\label{eq:ekf_predict_cov}
+P^-_{k} = F_{k-1}\,P_{k-1}\,F_{k-1}^\top + Q,
+\end{equation}
+ahol $F_{k-1}$ a mozgásmodell Jacobianja a (\ref{eq:jacobian_F}) szerint.
+
+\subsection{Frissítési lépés}
+A frissítés során először kiszámítjuk a predikált mérést, majd ennek és a valós mérésnek a különbségét képezzük. Ezt a különbséget \textit{reziduálnak} nevezzük:
+\begin{equation}
+\label{eq:predicted_measurement}
+\hat z_k = h(\hat x^-_k),
+\end{equation}
+\begin{equation}
+\label{eq:residual}
+r_k = z_k - \hat z_k.
+\end{equation}
+A reziduál azt fejezi ki, mennyire tér el a tényleges mérés attól, amit a modell alapján vártunk.
+
+A linearizált mérési modell Jacobianja a (\ref{eq:jacobian_H_def}) alapján:
+\begin{equation}
+\label{eq:ekf_H}
+H_k = \left.\frac{\partial h(x)}{\partial x}\right|_{x=\hat x^-_k}.
+\end{equation}
+A reziduál kovarianciája:
+\begin{equation}
+\label{eq:residual_cov}
+S_k = H_k\,P^-_k\,H_k^\top + R.
+\end{equation}
+A Kalman-erősítés:
+\begin{equation}
+\label{eq:kalman_gain}
+K_k = P^-_k\,H_k^\top\,S_k^{-1}.
+\end{equation}
+Az állapot és a kovariancia frissítése:
+\begin{equation}
+\label{eq:ekf_update_state}
+\hat x_k = \hat x^-_k + K_k\,r_k,
+\end{equation}
+\begin{equation}
+\label{eq:ekf_update_cov}
+P_k = (I - K_k H_k)\,P^-_k.
+\end{equation}
+Megjegyzés: a yaw szög esetén minden iterációban szög-normalizálást végzünk, hogy $\psi\in(-\pi,\pi]$ maradjon.
+
+\subsection{Baseline definíció: (A) EKF fix mérési kovarianciával}
+A (A) pipeline a fenti EKF-et változtatás nélkül használja, rögzített mérési zajmodellel:
+\begin{equation}
+\label{eq:R_baseline}
+R = \sigma_r^2 I_M,
+\end{equation}
+ahol $I_M$ az $M\times M$ egységmátrix, $\sigma_r$ pedig a range mérés szórása.
+Ez a referencia megoldás lesz az adaptív módszerek (B) és (C) összehasonlításához.
+
+\subsection{Értékelési metrika: pozíció RMSE}
+A teljesítményt a pozíció becslési hibája alapján értékeljük.
+Jelölje a valódi pozíciót $p(k)=[p_x(k),p_y(k)]^\top$, a becsült pozíciót pedig $\hat p(k)$.
+Az időpillanat szerinti euklideszi hiba:
+\begin{equation}
+\label{eq:position_error}
+e(k) = \| \hat p(k) - p(k) \|_2.
+\end{equation}
+Az $T$ hosszú szimulációra számolt RMSE:
+\begin{equation}
+\label{eq:rmse}
+\text{RMSE} = \sqrt{\frac{1}{T}\sum_{k=1}^{T} e(k)^2 }.
+\end{equation}
+A későbbi fejezetekben mindhárom pipeline (A/B/C) esetén ezt a metrikát használjuk, valamint a hibagörbéket $e(k)$ is vizsgáljuk.
+
+\subsection{Megjegyzés az outlierek hatásáról a baseline esetben}
+A (\ref{eq:R_baseline}) fix $R$ választás azt jelenti, hogy az EKF minden anchor mérését azonos megbízhatóságúnak tekinti.
+Outlier esetén ez túl optimista: a hibás mérés nagy reziduált generál a (\ref{eq:residual}) szerint, és aránytalanul nagy korrekciót okoz a (\ref{eq:ekf_update_state}) állapotfrissítésben.
+Ez a jelenség motiválja a (B) pipeline heurisztikus, reziduál-alapú adaptív súlyozását, valamint a (C) pipeline gráf-alapú reziduál simítását.

@@ -1,0 +1,70 @@
+{
+  "config": {
+    "seed": 0,
+    "T": 350,
+    "dt": 0.1,
+    "v": 0.85,
+    "w": 0.22,
+    "x0_true": [
+      2.0,
+      2.0,
+      0.2
+    ],
+    "x0_est": [
+      1.0,
+      1.0,
+      0.0
+    ],
+    "P0_diag": [
+      2.25,
+      2.25,
+      0.122
+    ],
+    "Q_diag": [
+      0.0009,
+      0.0009,
+      0.0003
+    ],
+    "sigma_r": 0.18,
+    "outlier_prob": 0.06,
+    "outlier_sigma": 1.2,
+    "anchors": [
+      [
+        0.0,
+        0.0
+      ],
+      [
+        10.0,
+        0.0
+      ],
+      [
+        10.0,
+        8.0
+      ],
+      [
+        0.0,
+        8.0
+      ],
+      [
+        5.0,
+        4.0
+      ]
+    ],
+    "heuristic_T_win": 15,
+    "heuristic_beta": 2.0,
+    "heuristic_eps": 0.001,
+    "gsp_T_win": 20,
+    "gsp_learn_every": 10,
+    "gsp_alpha": 0.01,
+    "gsp_mu": 0.2,
+    "gsp_gamma": 1.0
+  },
+  "metrics": {
+    "rmse_A": 0.0800929161124417,
+    "rmse_B": 0.07383612341279257,
+    "rmse_C": 0.07060557599768791,
+    "improvement_B_over_A": 0.006256792699649127,
+    "improvement_C_over_A": 0.009487340114753787
+  },
+  "cvxpy_available": true
+}

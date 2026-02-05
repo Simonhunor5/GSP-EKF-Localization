@@ -1,0 +1,74 @@
+\documentclass[12pt]{article}
+\usepackage{setspace}
+\usepackage{geometry}
+\usepackage{lipsum}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{titling}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{graphicx}
+\usepackage{amsmath}
+
+\usepackage[magyar]{babel}
+
+
+% Formatting
+\geometry{a4paper, margin=1in}
+\onehalfspacing
+\setlength{\droptitle}{-5em}
+\graphicspath{{images/}{figures/}}
+
+% Header and Footer
+\pagestyle{fancy}
+\fancyhf{}
+\setlength{\headheight}{14.5pt}
+\rhead{\thepage}
+\lhead{Korszerű gráfalapú jelfeldolgozás}
+\date{} 
+
+% Title Information
+\title{
+    \includegraphics[width=.65\textwidth]{images/saplogo.jpg} \\ 
+    \textbf{Korszerű gráfalapú jelfeldolgozás}\\[0.5em]
+    \large\textit{Szűrés időben változó
+lokalizációs hálózatokban} \\
+    \textit{Simon Hunor}\\
+    \vfill  % Pushes author details to the bottom
+    \normalsize  % Set the size back to normal for author details
+    \textbf{Témavezetők:} \textit{Dr. Lőrinc Márton, Dr. Áron Fehér} \\
+    \vspace{5mm}
+    \textit{Sapientia Erdélyi Magyar Tudományegyetem}\\
+    \textit{Villamosmérnöki Tanszék}
+}
+
+
+% Section Formatting
+\titleformat{\section}{\normalfont\Large\bfseries}{\thesection}{1em}{}
+
+% Begin Document
+\begin{document}
+
+
+\maketitle
+    \thispagestyle{empty}
+    \clearpage
+\tableofcontents
+    \thispagestyle{empty}
+    \clearpage
+    
+\setcounter{page}{1}
+\input{sections/1}
+\input{sections/2}
+\input{sections/3}
+\input{sections/4}
+\input{sections/5}
+\input{sections/6}
+\input{sections/7}
+
+\newpage
+
+\bibliographystyle{IEEEtran}
+\bibliography{source}
+
+\end{document}

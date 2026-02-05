@@ -1,0 +1,109 @@
+\section{Gráf-alapú reziduál simítás (C): Laplacián tanulás és low-pass szűrés}
+
+\subsection{Gráfmodell: csomópontok és a gráfon definiált jel}
+A (C) pipeline célja, hogy a mérésekből származó reziduálokat ne külön-külön (anchoronként függetlenül), hanem \textit{strukturáltan} kezelje \cite{Shuman2013, Ortega2018GSP}.
+Ehhez az anchor-hálózatot gráfként modellezzük:
+\begin{itemize}
+    \item \textbf{Csomópontok (node-ok):} az $M$ darab rögzített anchor.
+    \item \textbf{Gráf-jel (graph signal):} a (\ref{eq:residual_vector}) reziduál vektor $r(k)\in\mathbb{R}^M$, amelynek $i$-edik komponense az $i$-edik anchor reziduálja.
+\end{itemize}
+A (\ref{eq:residual}) alapján:
+\begin{equation}
+\label{eq:gsp_residual}
+r(k) = z(k) - \hat z(k),
+\end{equation}
+ahol $z(k)$ a mért range vektor, $\hat z(k)=h(\hat x_k^-)$ pedig a predikált mérés.
+
+\subsection{Súlymátrix és Laplacián}
+A gráf súlymátrixa:
+\begin{equation}
+\label{eq:weight_matrix}
+W(k) = [w_{ij}(k)] \in \mathbb{R}^{M\times M},
+\end{equation}
+ahol $w_{ij}(k)\ge 0$ az $i$ és $j$ anchor közötti kapcsolat erőssége (hasonlóság).
+A fokszám-mátrix (degree):
+\begin{equation}
+\label{eq:degree_matrix}
+D(k)=\mathrm{diag}(d_1(k),\dots,d_M(k)), \qquad d_i(k)=\sum_{j=1}^{M} w_{ij}(k).
+\end{equation}
+A (kombinatorikus) gráf-Laplacián:
+\begin{equation}
+\label{eq:laplacian}
+L(k) = D(k) - W(k).
+\end{equation}
+A Laplacián alapvető tulajdonsága, hogy a gráf szerkezete szerint méri a jel ``simultságát'':
+\begin{equation}
+\label{eq:smoothness}
+x^\top L x = \frac{1}{2}\sum_{i=1}^{M}\sum_{j=1}^{M} w_{ij}(x_i-x_j)^2,
+\end{equation}
+tehát ha a szomszédos csomópontok jelértékei közel vannak egymáshoz, akkor a simultsági tag kicsi.
+
+\subsection{Dong-típusú Laplacián tanulás reziduálablakból}
+A (C) pipeline-ben a Laplaciánt nem előre rögzítjük, hanem a reziduál-idősor alapján \textit{tanuljuk} \cite{Dong2019, Dong2020GSPML}.
+Legyen $T_{\text{win}}$ hosszúságú csúszóablak, és gyűjtsük össze az anchorok reziduáljait egy mátrixba:
+\begin{equation}
+\label{eq:residual_window}
+X(k) = \begin{bmatrix}
+r(k-T_{\text{win}}+1) & \cdots & r(k)
+\end{bmatrix}\in\mathbb{R}^{M\times T_{\text{win}}}.
+\end{equation}
+A Dong-féle megközelítés lényege, hogy olyan $L$ Laplaciánt keresünk, amely mellett a jelek ``sima'' viselkedést mutatnak a gráfon.
+Ezt a simultságot a (\ref{eq:smoothness}) alapján az alábbi célfüggvény méri:
+\begin{equation}
+\label{eq:smoothness_objective}
+\mathrm{smooth}(L) = \mathrm{tr}\bigl(X^\top L X\bigr) = \sum_{t} x_t^\top L x_t,
+\end{equation}
+ahol $x_t$ az ablak egy oszlopa (egy időpillanat reziduálja).
+
+A tényleges optimalizáció az alábbi formát követi:
+\begin{equation}
+\label{eq:laplacian_learning}
+\min_{L}\ \mathrm{tr}(X^\top L X) + \alpha\|L\|_F^2 + \mu\|L-L_{\text{prev}}\|_F^2,
+\end{equation}
+ahol $\alpha>0$ regularizációs paraméter és $\mu\ge 0$ opcionálisan időbeli simaságot kényszerít a Laplacián alakulására.
+
+A (\ref{eq:laplacian}) Laplaciánra tipikus strukturális kényszereket adunk:
+\begin{itemize}
+    \item \textbf{Zérus sorösszeg:} $L\mathbf{1} = 0$ (Laplacián definíció).
+    \item \textbf{Nemnegatív diagonál:} $\mathrm{diag}(L)\ge 0$.
+    \item \textbf{Nempozitív off-diagonál:} $L_{ij}\le 0$ ha $i\neq j$.
+    \item \textbf{Skálázás:} $\sum_i L_{ii} = M$ (elkerüli a triviális $L=0$ megoldást).
+\end{itemize}
+A kódban az optimalizálást konvex programként oldjuk meg (CVXPY), és a (\ref{eq:laplacian_learning}) tanulást nem minden lépésben, hanem csak ritkábban futtatjuk (\texttt{learn\_every}), hogy a futási idő kezelhető maradjon.
+
+\subsection{Gráf-alapú low-pass reziduál simítás}
+Ha rendelkezésre áll egy tanult $L(k)$ Laplacián a (\ref{eq:laplacian_learning}) alapján, akkor a pillanatnyi reziduált egy gráf aluláteresztő (low-pass) operátorral simítjuk.
+Az alkalmazott egyszerű Tikhonov-jellegű simítás:
+\begin{equation}
+\label{eq:lowpass_smoothing}
+\tilde r(k) = \bigl(I + \gamma L(k)\bigr)^{-1} r(k),
+\end{equation}
+ahol $\gamma>0$ a simítás erőssége.
+Intuitívan: a művelet csökkenti a ``nem-sima'' (szomszédok között ugráló) komponenseket, és előnyben részesíti a gráfon sima reziduálmintázatokat.
+
+\subsection{Integráció az EKF frissítésbe}
+A (\ref{eq:lowpass_smoothing}) simított reziduált közvetlenül az EKF frissítési lépésébe építjük be.
+A (\ref{eq:predicted_measurement}) predikált mérés:
+\begin{equation}
+\label{eq:gsp_predicted}
+\hat z(k) = h(\hat x_k^-).
+\end{equation}
+A simított reziduálból definiálunk egy ``korrigált'' mérési vektort:
+\begin{equation}
+\label{eq:corrected_measurement}
+\tilde z(k) = \hat z(k) + \tilde r(k).
+\end{equation}
+Ezután az EKF frissítést a (\ref{eq:ekf_update_state})--(\ref{eq:ekf_update_cov}) szerint a $\tilde z(k)$ méréssel végezzük el.
+A mérési kovarianciát összehasonlíthatósági okból fixen tartjuk a (\ref{eq:R_baseline}) szerint ($R=\sigma_r^2 I$), így a különbséget egyértelműen a gráf-alapú reziduál simítás hatása adja.
+
+\subsection{Megjegyzések: hangolás és korlátok}
+A (C) pipeline több hangolható paramétert tartalmaz:
+\begin{itemize}
+    \item $T_{\text{win}}$: a (\ref{eq:residual_window}) Laplacián tanulás ablakmérete (több adat stabilabb tanulást adhat).
+    \item \texttt{learn\_every}: a tanulás gyakorisága (runtime vs adaptivitás).
+    \item $\alpha$: regularizáció a (\ref{eq:laplacian_learning}) Laplacián normájára (numerikai stabilitás).
+    \item $\mu$: időbeli simaság a $L$ mátrixra (lassabb változás, stabilabb viselkedés).
+    \item $\gamma$: a (\ref{eq:lowpass_smoothing}) reziduál simítás erőssége.
+\end{itemize}
+A módszer előnye, hogy képes kezelni olyan helyzeteket is, amikor több anchor reziduálja együtt változik (korrelált hibák), mert a gráf ezt a struktúrát explicit módon modellezheti.
+Hátránya, hogy a Laplacián-tanulás optimalizációs lépése számításigényesebb, és külső könyvtárat igényel (CVXPY).
