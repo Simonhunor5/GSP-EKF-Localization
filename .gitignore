@@ -21,3 +21,6 @@ venv/
 
 # Results (optional, keep if you want sample results in repo)
 # results/
+
+# LaTeX source - ignore whole directory
+latex/

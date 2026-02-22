@@ -57,6 +57,9 @@ class ExperimentConfig:
     gsp_mu: float = 0.2
     gsp_gamma: float = 1.0
     
+    # Anchor position uncertainty
+    anchor_noise_sigma: float = 0.0  # std of anchor position error [m]
+    
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
@@ -84,6 +87,10 @@ class ExperimentResult:
     weights_B: Optional[np.ndarray] = None
     resid_norm_raw: Optional[np.ndarray] = None
     resid_norm_smooth: Optional[np.ndarray] = None
+    true_yaw: Optional[np.ndarray] = None
+    est_A_yaw: Optional[np.ndarray] = None
+    est_B_yaw: Optional[np.ndarray] = None
+    est_C_yaw: Optional[np.ndarray] = None
     
     def to_dict(self, include_arrays=False) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
@@ -130,6 +137,11 @@ def run_experiment(config: ExperimentConfig, store_arrays: bool = True) -> Exper
     Q = np.diag(config.Q_diag)
     R_fixed = (config.sigma_r ** 2) * np.eye(M)
     
+    # Add anchor position noise (EKF uses noisy positions, truth uses perfect)
+    anchors_true = anchors.copy()
+    if config.anchor_noise_sigma > 0:
+        anchors = anchors_true + rng.normal(0.0, config.anchor_noise_sigma, size=anchors.shape)
+    
     # Initial state
     x_true = np.array(config.x0_true)
     
@@ -159,6 +171,10 @@ def run_experiment(config: ExperimentConfig, store_arrays: bool = True) -> Exper
     estA_xy = np.zeros((T, 2))
     estB_xy = np.zeros((T, 2))
     estC_xy = np.zeros((T, 2))
+    true_yaw = np.zeros(T)
+    estA_yaw = np.zeros(T)
+    estB_yaw = np.zeros(T)
+    estC_yaw = np.zeros(T)
     errA = np.zeros(T)
     errB = np.zeros(T)
     errC = np.zeros(T)
@@ -173,8 +189,8 @@ def run_experiment(config: ExperimentConfig, store_arrays: bool = True) -> Exper
         # True state propagation
         x_true = motion_model(x_true, u, dt)
         
-        # Measurement with noise
-        z_true = measurement_model(x_true, anchors)
+        # Measurement with noise (true ranges from true anchor positions)
+        z_true = measurement_model(x_true, anchors_true)
         z = z_true + rng.normal(0.0, config.sigma_r, size=M)
         
         # Outlier injection
@@ -233,6 +249,10 @@ def run_experiment(config: ExperimentConfig, store_arrays: bool = True) -> Exper
         estA_xy[k] = xA[:2]
         estB_xy[k] = xB[:2]
         estC_xy[k] = xC[:2]
+        true_yaw[k] = x_true[2]
+        estA_yaw[k] = xA[2]
+        estB_yaw[k] = xB[2]
+        estC_yaw[k] = xC[2]
         errA[k] = np.sum((estA_xy[k] - true_xy[k]) ** 2)
         errB[k] = np.sum((estB_xy[k] - true_xy[k]) ** 2)
         errC[k] = np.sum((estC_xy[k] - true_xy[k]) ** 2)
@@ -263,5 +283,9 @@ def run_experiment(config: ExperimentConfig, store_arrays: bool = True) -> Exper
         result.weights_B = weightsB
         result.resid_norm_raw = resid_norm_raw
         result.resid_norm_smooth = resid_norm_smooth
+        result.true_yaw = true_yaw
+        result.est_A_yaw = estA_yaw
+        result.est_B_yaw = estB_yaw
+        result.est_C_yaw = estC_yaw
     
     return result

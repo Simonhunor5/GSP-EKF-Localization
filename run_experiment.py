@@ -55,6 +55,10 @@ def parse_args():
     parser.add_argument("--gsp_mu", type=float, default=0.2)
     parser.add_argument("--gsp_gamma", type=float, default=1.0)
     
+    # Anchor noise
+    parser.add_argument("--anchor_noise_sigma", type=float, default=0.0,
+                        help="Anchor position uncertainty std [m]")
+    
     return parser.parse_args()
 
 
@@ -74,6 +78,7 @@ def run_single(args) -> dict:
         gsp_alpha=args.gsp_alpha,
         gsp_mu=args.gsp_mu,
         gsp_gamma=args.gsp_gamma,
+        anchor_noise_sigma=args.anchor_noise_sigma,
     )
     
     print("Running experiment with config:")
